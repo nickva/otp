@@ -8102,7 +8102,10 @@ erts_internal_dirty_process_handle_signals_1(BIF_ALIST_1)
         BIF_RET(am_noproc);
 
     state = erts_atomic32_read_acqb(&rp->state);
-    dirty = (state & ERTS_PSFLG_DIRTY_RUNNING);
+    dirty = (!!(state & (ERTS_PSFLG_DIRTY_CPU_PROC
+                         | ERTS_PSFLG_DIRTY_IO_PROC
+                         | ERTS_PSFLG_DIRTY_RUNNING))
+             & !(state & ERTS_PSFLG_DIRTY_RUNNING_SYS));
     /*
      * Ignore ERTS_PSFLG_DIRTY_RUNNING_SYS (see
      * comment in erts_execute_dirty_system_task()
@@ -8121,7 +8124,10 @@ erts_internal_dirty_process_handle_signals_1(BIF_ALIST_1)
 
     state = erts_atomic32_read_mb(&rp->state);
     noproc = (state & ERTS_PSFLG_FREE);
-    dirty = (state & ERTS_PSFLG_DIRTY_RUNNING);
+    dirty = (!!(state & (ERTS_PSFLG_DIRTY_CPU_PROC
+                         | ERTS_PSFLG_DIRTY_IO_PROC
+                         | ERTS_PSFLG_DIRTY_RUNNING))
+             & !(state & ERTS_PSFLG_DIRTY_RUNNING_SYS));
 
     if (busy) {
         if (noproc)

@@ -1919,7 +1919,9 @@ erts_proc_notify_new_sig(Process* rp, erts_aint32_t state,
         state = erts_proc_sys_schedule(rp, state, enable_flag);
     }
 
-    if (state & ERTS_PSFLG_DIRTY_RUNNING) {
+    if (state & (ERTS_PSFLG_DIRTY_CPU_PROC
+                 | ERTS_PSFLG_DIRTY_IO_PROC
+                 | ERTS_PSFLG_DIRTY_RUNNING)) {
         /*
          * We ignore ERTS_PSFLG_DIRTY_RUNNING_SYS. For
          * more info see erts_execute_dirty_system_task()
