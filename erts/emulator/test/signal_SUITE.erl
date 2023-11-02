@@ -60,7 +60,8 @@
          simultaneous_signals_basic/1,
          simultaneous_signals_recv/1,
          simultaneous_signals_exit/1,
-         simultaneous_signals_recv_exit/1]).
+         simultaneous_signals_recv_exit/1,
+         parallel_signal_enqueue_race/1]).
 
 -export([spawn_spammers/3]).
 
@@ -74,6 +75,9 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
+    try erts_debug:set_internal_state(available_internal_state, false)
+    catch  _:_ -> ok
+    end,
     ok.
 
 suite() ->
@@ -95,6 +99,7 @@ all() ->
      monitor_named_order_local,
      monitor_named_order_remote,
      monitor_nodes_order,
+     parallel_signal_enqueue_race,
      {group, adjust_message_queue}].
 
 groups() ->
@@ -1131,6 +1136,80 @@ receive_integer_pairs(Tmo) ->
         Tmo ->
             ok
     end.
+
+parallel_signal_enqueue_race(Config) when is_list(Config) ->
+    %%
+    %% PR-7822
+    %%
+    %% This bug could be triggered when
+    %% * receiver had parallel signal enqueue optimization enabled
+    %% * receiver fetched signals while it wasn't in a running state (only
+    %%   happens when receive traced)
+    %% * signals were enqueued simultaneously as the fetch of signals
+    %%
+    %% When the bug was triggered, thereceiver could end up in an inconsistent
+    %% state where it potentially would be stuck for ever.
+    %%
+    %% The above scenario is very hard to trigger, so the test typically do
+    %% not fail even with the bug present, but we at least try to massage
+    %% the scenario...
+    erts_debug:set_internal_state(available_internal_state, true),
+    try
+        lists:foreach(fun (_) -> parallel_signal_enqueue_race_test() end,
+                      lists:seq(1, 5))
+    after
+        erts_debug:set_internal_state(available_internal_state, false)
+    end.
+
+parallel_signal_enqueue_race_test() ->
+    R = spawn_opt(fun () ->
+                          true = erts_debug:set_internal_state(proc_sig_buffers,
+                                                               true),
+                          receive after infinity -> ok end
+                  end,
+                  [{message_queue_data, off_heap}, {priority, high}, link]),
+    T = spawn_link(fun FlushTrace () ->
+                           receive {trace,R,'receive',_} -> ok end,
+                           FlushTrace()
+                   end),
+    1 = erlang:trace(R, true, ['receive', {tracer, T}]),
+    CountLoop = fun CountLoop (0) ->
+                        ok;
+                    CountLoop (N) ->
+                        CountLoop(N-1)
+                end,
+    SigLoop = fun SigLoop (0)  ->
+                      ok;
+                  SigLoop (N) ->
+                      CountLoop(rand:uniform(4000)),
+                      erlang:demonitor(erlang:monitor(process, R), [flush]),
+                      receive after 1 -> ok end,
+                      SigLoop(N-1)
+              end,
+    SMs = lists:map(fun (X) ->
+                            spawn_opt(fun () -> SigLoop(1000) end,
+                                      [{scheduler, X}, link, monitor])
+                    end, lists:seq(1,erlang:system_info(schedulers_online))),
+    R ! hello,
+    lists:foreach(fun ({P, M}) ->
+                          receive {'DOWN', M, process, P, _} -> ok end
+                  end, SMs),
+
+    %% These signals would typically not be delivered if the bug was
+    %% triggered and the test case would time out.
+    true = is_process_alive(R),
+    unlink(R),
+    exit(R, kill),
+    false = is_process_alive(R),
+
+    true = is_process_alive(T),
+    unlink(T),
+    exit(T, kill),
+    false = is_process_alive(T),
+
+    ok.
+
+
 
 %%
 %% -- Internal utils --------------------------------------------------------
