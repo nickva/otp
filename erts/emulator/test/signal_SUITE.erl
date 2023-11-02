@@ -61,7 +61,8 @@
          simultaneous_signals_recv/1,
          simultaneous_signals_exit/1,
          simultaneous_signals_recv_exit/1,
-         parallel_signal_enqueue_race/1]).
+         parallel_signal_enqueue_race/1,
+         dirty_schedule/1]).
 
 -export([spawn_spammers/3]).
 
@@ -100,6 +101,7 @@ all() ->
      monitor_named_order_remote,
      monitor_nodes_order,
      parallel_signal_enqueue_race,
+     dirty_schedule,
      {group, adjust_message_queue}].
 
 groups() ->
@@ -1209,7 +1211,25 @@ parallel_signal_enqueue_race_test() ->
 
     ok.
 
-
+dirty_schedule(Config) when is_list(Config) ->
+    %%
+    %% PR-7822
+    %%
+    P = spawn_link(fun DirtyLoop () ->
+                           erts_debug:dirty_io(scheduler,type),
+                           DirtyLoop()
+                   end),
+    Loop = fun Loop (0) ->
+                   ok;
+               Loop (N) ->
+                   _ = process_info(P, current_function),
+                   Loop(N-1)
+           end,
+    Loop(1000000),
+    unlink(P),
+    exit(P, kill),
+    false = is_process_alive(P),
+    ok.
 
 %%
 %% -- Internal utils --------------------------------------------------------
