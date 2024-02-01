@@ -13157,6 +13157,8 @@ delete_process(Process* p)
     process_breakpoint_time_t *pbt;
     Uint32 block_rla_ref = (Uint32) (Uint) p->u.terminate;
 
+    ERTS_CHK_MBUF_SZ(p);
+
     VERBOSE(DEBUG_PROCESSES, ("Removing process: %T\n",p->common.id));
     VERBOSE(DEBUG_SHCOPY, ("[pid=%T] delete process: %p %p %p %p\n", p->common.id,
                            HEAP_START(p), HEAP_END(p), OLD_HEAP(p), OLD_HEND(p)));
@@ -13178,6 +13180,8 @@ delete_process(Process* p)
     if (pbt)
         erts_free(ERTS_ALC_T_BPD, (void *) pbt);
 
+
+    ERTS_CHK_MBUF_SZ(p);
     erts_destroy_nfunc(p);
 
     /* Cleanup psd */
@@ -13188,11 +13192,11 @@ delete_process(Process* p)
 	erts_atomic_set_nob(&p->psd, (erts_aint_t) NULL); /* Reduction counting depends on this... */
 	erts_free(ERTS_ALC_T_PSD, psd);
     }
-
+    ERTS_CHK_MBUF_SZ(p);
     /* Clean binaries and funs */
     erts_cleanup_offheap(&p->off_heap);
     erts_cleanup_offheap_list(p->wrt_bins);
-
+    ERTS_CHK_MBUF_SZ(p);
     /*
      * The mso list should not be used anymore, but if it is, make sure that
      * we'll notice.
@@ -13350,6 +13354,7 @@ erts_proc_exit_handle_dist_monitor(ErtsMonitor *mon, void *vctxt, Sint reds)
         watcher = copy_struct(watcher, watcher_sz, &hp, factory.off_heap);
         ref_sz = size_object(mdp->ref);
         hp = erts_produce_heap(&factory, ref_sz, 0);
+        ERTS_CHK_MBUF_SZ(c_p);
         ref = copy_struct(mdp->ref, ref_sz, &hp, factory.off_heap);
         erts_factory_close(&factory);
         code = erts_dsig_send_m_exit(&ctx,
@@ -13362,15 +13367,19 @@ erts_proc_exit_handle_dist_monitor(ErtsMonitor *mon, void *vctxt, Sint reds)
         case ERTS_DSIG_SEND_YIELD:
             reds_consumed = reds; /* force yield */
             ctxt->yield = 1;
+            ERTS_CHK_MBUF_SZ(c_p);
             break;
         case ERTS_DSIG_SEND_CONTINUE:
             ctxt->dist_state = erts_dsend_export_trap_context(c_p, &ctx);
             reds_consumed = reds; /* force yield */
             ctxt->yield = 1;
+            ERTS_CHK_MBUF_SZ(c_p);
             break;
         case ERTS_DSIG_SEND_OK:
+            ERTS_CHK_MBUF_SZ(c_p);
             break;
         case ERTS_DSIG_SEND_TOO_LRG:
+            ERTS_CHK_MBUF_SZ(c_p);
             erts_kill_dist_connection(dep, dist->connection_id);
             break;
         default:
@@ -13469,7 +13478,9 @@ proc_exit_handle_pend_spawn_monitors(ErtsMonitor *mon, void *vctxt, Sint reds)
         erts_factory_proc_init(&factory, c_p);
         item_sz = size_object(mon->other.item);
         hp = erts_produce_heap(&factory, item_sz, 0);
+        ERTS_CHK_MBUF_SZ(c_p);
         item = copy_struct(mon->other.item, item_sz, &hp, factory.off_heap);
+        ERTS_CHK_MBUF_SZ(c_p);
         erts_factory_close(&factory);
         code = erts_dsig_send_exit_tt(&ctx,
                                       c_p,
@@ -13481,15 +13492,19 @@ proc_exit_handle_pend_spawn_monitors(ErtsMonitor *mon, void *vctxt, Sint reds)
         case ERTS_DSIG_SEND_YIELD:
             reds_consumed = reds; /* force yield */
             ctxt->yield = 1;
+            ERTS_CHK_MBUF_SZ(c_p);
             break;
         case ERTS_DSIG_SEND_CONTINUE:
             ctxt->dist_state = erts_dsend_export_trap_context(c_p, &ctx);
             reds_consumed = reds; /* force yield */
             ctxt->yield = 1;
+            ERTS_CHK_MBUF_SZ(c_p);
             break;
         case ERTS_DSIG_SEND_OK:
+            ERTS_CHK_MBUF_SZ(c_p);
             break;
         case ERTS_DSIG_SEND_TOO_LRG:
+            ERTS_CHK_MBUF_SZ(c_p);
             erts_kill_dist_connection(dep, dist->connection_id);
             break;
         default:
@@ -13751,7 +13766,7 @@ erts_proc_exit_handle_dist_link(ErtsLink *lnk, void *vctxt, Sint reds)
 
     if (!erts_link_dist_delete(dlnk))
         elnk = NULL;
-
+    ERTS_CHK_MBUF_SZ(c_p);
     code = erts_dsig_prepare(&ctx, dep, c_p, ERTS_PROC_LOCK_MAIN,
                              ERTS_DSP_NO_LOCK, 0, 0, 0);
 
@@ -13760,16 +13775,19 @@ erts_proc_exit_handle_dist_link(ErtsLink *lnk, void *vctxt, Sint reds)
     switch (code) {
     case ERTS_DSIG_PREP_NOT_ALIVE:
     case ERTS_DSIG_PREP_NOT_CONNECTED:
+        ERTS_CHK_MBUF_SZ(c_p);
         break;
     case ERTS_DSIG_PREP_PENDING:
     case ERTS_DSIG_PREP_CONNECTED:
         if (dist->connection_id != ctx.connection_id)
+            ERTS_CHK_MBUF_SZ(c_p);
             break;
         erts_factory_proc_init(&factory, c_p);
         item_sz = size_object(lnk->other.item);
         hp = erts_produce_heap(&factory, item_sz, 0);
         item = copy_struct(lnk->other.item, item_sz, &hp, factory.off_heap);
         erts_factory_close(&factory);
+        ERTS_CHK_MBUF_SZ(c_p);
         code = erts_dsig_send_exit_tt(&ctx,
                                       c_p,
                                       item,
@@ -13780,15 +13798,20 @@ erts_proc_exit_handle_dist_link(ErtsLink *lnk, void *vctxt, Sint reds)
         case ERTS_DSIG_SEND_YIELD:
             reds_consumed = reds; /* force yield */
             ctxt->yield = 1;
+            ERTS_CHK_MBUF_SZ(c_p);
             break;
         case ERTS_DSIG_SEND_CONTINUE:
+            ERTS_CHK_MBUF_SZ(c_p);
             ctxt->dist_state = erts_dsend_export_trap_context(c_p, &ctx);
             reds_consumed = reds; /* force yield */
             ctxt->yield = 1;
+            ERTS_CHK_MBUF_SZ(c_p);
             break;
         case ERTS_DSIG_SEND_OK:
+            ERTS_CHK_MBUF_SZ(c_p);
             break;
         case ERTS_DSIG_SEND_TOO_LRG:
+            ERTS_CHK_MBUF_SZ(c_p);
             erts_kill_dist_connection(dep, dist->connection_id);
             break;
         default:
@@ -13929,6 +13952,7 @@ erts_do_exit_process(Process* p, Eterm reason)
        process from exiting until the lock has been released. */
     erts_proc_lock(p, ERTS_PROC_LOCKS_ALL_MINOR);
 
+    ERTS_CHK_MBUF_SZ(p);
     set_self_exiting(p, reason, NULL, NULL, NULL);
 
     if (IS_TRACED_FL(p, F_TRACE_CALLS))
@@ -14008,6 +14032,8 @@ erts_continue_exit_process(Process *p)
     int yield_allowed = 1;
 #endif
 
+    ERTS_CHK_MBUF_SZ(p);
+
     if (p->u.terminate) {
         trap_state = p->u.terminate;
         /* Re-set the reason as it may have been gc:ed */
@@ -14038,7 +14064,7 @@ restart:
             abort_sched_onln_chng_waitq(p);
             reds -= 100;
         }
-
+        ERTS_CHK_MBUF_SZ(p);
         trap_state->phase = ERTS_CONTINUE_EXIT_BLCKD_MSHED;
         if (reds <= 0) goto yield;
     case ERTS_CONTINUE_EXIT_BLCKD_MSHED:
@@ -14051,6 +14077,7 @@ restart:
             case ERTS_SCHDLR_SSPND_DONE_MSCHED_BLOCKED:
             case ERTS_SCHDLR_SSPND_DONE_NMSCHED_BLOCKED:
                 p->flags &= ~F_HAVE_BLCKD_MSCHED;
+                ERTS_CHK_MBUF_SZ(p);
                 break;
             default:
                 erts_exit(ERTS_ABORT_EXIT, "%s:%d: Internal error: %d\n",
@@ -14058,7 +14085,7 @@ restart:
             }
             reds -= 100;
         }
-
+        ERTS_CHK_MBUF_SZ(p);
         trap_state->phase = ERTS_CONTINUE_EXIT_BLCKD_NMSHED;
         if (reds <= 0) goto yield;
     case ERTS_CONTINUE_EXIT_BLCKD_NMSHED:
@@ -14071,6 +14098,7 @@ restart:
             case ERTS_SCHDLR_SSPND_DONE_MSCHED_BLOCKED:
             case ERTS_SCHDLR_SSPND_DONE_NMSCHED_BLOCKED:
                 p->flags &= ~F_HAVE_BLCKD_MSCHED;
+                ERTS_CHK_MBUF_SZ(p);
                 break;
             default:
                 erts_exit(ERTS_ABORT_EXIT, "%s:%d: Internal error: %d\n",
@@ -14078,21 +14106,22 @@ restart:
             }
             reds -= 100;
         }
-
+        ERTS_CHK_MBUF_SZ(p);
         trap_state->yield_state = NULL;
         trap_state->phase = ERTS_CONTINUE_EXIT_USING_DB;
         if (reds <= 0) goto yield;
     case ERTS_CONTINUE_EXIT_USING_DB:
 
         if (p->flags & F_USING_DB) {
+            ERTS_CHK_MBUF_SZ(p);
             if (erts_db_process_exiting(p, ERTS_PROC_LOCK_MAIN, &trap_state->yield_state))
                 goto yield;
             p->flags &= ~F_USING_DB;
         }
-
+        ERTS_CHK_MBUF_SZ(p);
         trap_state->phase = ERTS_CONTINUE_EXIT_CLEAN_SYS_TASKS;
     case ERTS_CONTINUE_EXIT_CLEAN_SYS_TASKS:
-
+        ERTS_CHK_MBUF_SZ(p);
         state = erts_atomic32_read_acqb(&p->state);
         /*
          * If we might access any literals on the heap after this point,
@@ -14119,9 +14148,11 @@ restart:
     
         /* We enable GC again as it can produce more sys-tasks */
         erts_set_gc_state(p, 1);
+        ERTS_CHK_MBUF_SZ(p);
         state = erts_atomic32_read_acqb(&p->state);
         if ((state & ERTS_PSFLG_SYS_TASKS) || p->dirty_sys_tasks) {
             reds -= cleanup_sys_tasks(p, state, reds);
+            ERTS_CHK_MBUF_SZ(p);
             if (reds <= 0) goto yield;
         }
 
@@ -14134,7 +14165,7 @@ restart:
         ASSERT(p->dirty_sys_tasks == NULL);
         erts_proc_unlock(p, ERTS_PROC_LOCK_STATUS);
 #endif
-
+        ERTS_CHK_MBUF_SZ(p);
         if (p->flags & F_USING_DDLL) {
             erts_ddll_proc_dead(p, ERTS_PROC_LOCK_MAIN);
             p->flags &= ~F_USING_DDLL;
@@ -14201,7 +14232,7 @@ restart:
          * It might show up signal prio elevation tasks until we
          * have entered free state. Cleanup such tasks now.
          */
-
+        ERTS_CHK_MBUF_SZ(p);
         state = erts_atomic32_read_acqb(&p->state);
         if ((state & ERTS_PSFLG_SYS_TASKS) || p->dirty_sys_tasks) {
             reds -= cleanup_sys_tasks(p, state, reds);
@@ -14257,10 +14288,11 @@ restart:
         erts_proc_unlock(p, ERTS_PROC_LOCK_MSGQ);
 
         trap_state->yield_state = NULL;
+        ERTS_CHK_MBUF_SZ(p);
         trap_state->phase = ERTS_CONTINUE_EXIT_LINKS;
         if (reds <= 0) goto yield;
     case ERTS_CONTINUE_EXIT_LINKS:
-
+        ERTS_CHK_MBUF_SZ(p);
         reds = erts_link_tree_foreach_delete_yielding(
             &trap_state->links,
             erts_proc_exit_handle_link,
@@ -14269,12 +14301,12 @@ restart:
             reds);
         if (reds <= 0)
             goto yield;
-
+        ERTS_CHK_MBUF_SZ(p);
         ASSERT(!trap_state->links);
         trap_state->yield_state = NULL;
         trap_state->phase = ERTS_CONTINUE_EXIT_MONITORS;
     case ERTS_CONTINUE_EXIT_MONITORS:
-
+        ERTS_CHK_MBUF_SZ(p);
     reds = erts_monitor_tree_foreach_delete_yielding(
             &trap_state->monitors,
             erts_proc_exit_handle_monitor,
@@ -14283,12 +14315,12 @@ restart:
             reds);
         if (reds <= 0)
             goto yield;
-
+        ERTS_CHK_MBUF_SZ(p);
         ASSERT(!trap_state->monitors);
         trap_state->yield_state = NULL;
         trap_state->phase = ERTS_CONTINUE_EXIT_LT_MONITORS;
     case ERTS_CONTINUE_EXIT_LT_MONITORS:
-
+        ERTS_CHK_MBUF_SZ(p);
         reds = erts_monitor_list_foreach_delete_yielding(
             &trap_state->lt_monitors,
             erts_proc_exit_handle_monitor,
@@ -14297,12 +14329,12 @@ restart:
             reds);
         if (reds <= 0)
             goto yield;
-
+        ERTS_CHK_MBUF_SZ(p);
         ASSERT(!trap_state->lt_monitors);
         trap_state->phase = ERTS_CONTINUE_EXIT_HANDLE_PROC_SIG;
     case ERTS_CONTINUE_EXIT_HANDLE_PROC_SIG: {
         Sint r = reds;
-
+        ERTS_CHK_MBUF_SZ(p);
         if (!erts_proc_sig_handle_exit(p, &r, &trap_state->pectxt)) {
             goto yield;
         }
@@ -14312,7 +14344,7 @@ restart:
         trap_state->phase = ERTS_CONTINUE_EXIT_DIST_SEND;
     }
     case ERTS_CONTINUE_EXIT_DIST_SEND: {
-
+        ERTS_CHK_MBUF_SZ(p);
     continue_dist_send:
         ASSERT(p->rcount == 0);
         if (is_not_nil(trap_state->pectxt.dist_state)) {
@@ -14322,6 +14354,7 @@ restart:
             int result;
 
             ctx->reds = initial_reds;
+            ERTS_CHK_MBUF_SZ(p);
             result = erts_dsig_send(ctx);
 
             /* erts_dsig_send bumps reductions on the process in the ctx */
@@ -14346,30 +14379,31 @@ restart:
                 goto yield;
             goto restart;
         }
-
+        ERTS_CHK_MBUF_SZ(p);
         trap_state->phase = ERTS_CONTINUE_EXIT_DIST_LINKS;
     }
     case ERTS_CONTINUE_EXIT_DIST_LINKS: {
-
+        ERTS_CHK_MBUF_SZ(p);
         if (is_not_nil(trap_state->pectxt.dist_state))
             goto continue_dist_send;
-
+        ERTS_CHK_MBUF_SZ(p);
         reds = erts_link_tree_foreach_delete_yielding(
             &trap_state->pectxt.dist_links,
             erts_proc_exit_handle_dist_link,
             (void *) &trap_state->pectxt,
             &trap_state->yield_state,
             reds);
+        ERTS_CHK_MBUF_SZ(p);
         if (reds <= 0 || trap_state->pectxt.yield)
             goto yield;
-
+        ERTS_CHK_MBUF_SZ(p);
         trap_state->phase = ERTS_CONTINUE_EXIT_DIST_MONITORS;
     }
     case ERTS_CONTINUE_EXIT_DIST_MONITORS: {
-
+        ERTS_CHK_MBUF_SZ(p);
         if (is_not_nil(trap_state->pectxt.dist_state))
             goto continue_dist_send;
-
+        ERTS_CHK_MBUF_SZ(p);
         reds = erts_monitor_tree_foreach_delete_yielding(
             &trap_state->pectxt.dist_monitors,
             erts_proc_exit_handle_dist_monitor,
@@ -14378,14 +14412,14 @@ restart:
             reds);
         if (reds <= 0 || trap_state->pectxt.yield)
             goto yield;
-
+        ERTS_CHK_MBUF_SZ(p);
         trap_state->phase = ERTS_CONTINUE_EXIT_DIST_PEND_SPAWN_MONITORS;
     }
     case ERTS_CONTINUE_EXIT_DIST_PEND_SPAWN_MONITORS: {
-
+        ERTS_CHK_MBUF_SZ(p);
         if (is_not_nil(trap_state->pectxt.dist_state))
             goto continue_dist_send;
-        
+        ERTS_CHK_MBUF_SZ(p);
         if (trap_state->pectxt.wait_pend_spawn_monitor) {
             ErtsMonitor *mon = trap_state->pectxt.wait_pend_spawn_monitor;
             trap_state->pectxt.wait_pend_spawn_monitor = NULL;
@@ -14394,7 +14428,7 @@ restart:
             if (reds <= 0 || trap_state->pectxt.yield)
                 goto yield;
         }
-        
+        ERTS_CHK_MBUF_SZ(p);
         reds = erts_monitor_tree_foreach_delete_yielding(
             &trap_state->pectxt.pend_spawn_monitors,
             proc_exit_handle_pend_spawn_monitors,
@@ -14403,7 +14437,7 @@ restart:
             reds);
         if (reds <= 0 || trap_state->pectxt.yield)
             goto yield;
-
+        ERTS_CHK_MBUF_SZ(p);
         trap_state->phase = ERTS_CONTINUE_EXIT_DONE;
     }
     case ERTS_CONTINUE_EXIT_DONE: {
@@ -14415,7 +14449,7 @@ restart:
 #ifdef DEBUG
         yield_allowed = 0;
 #endif
-
+        ERTS_CHK_MBUF_SZ(p);
         /* Enable GC again, through strictly not needed it puts
            the process in a consistent state. */
         erts_set_gc_state(p, 1);
@@ -14453,7 +14487,7 @@ restart:
             if (refc_inced && !(n & ERTS_PSFLG_IN_RUNQ))
                 erts_proc_dec_refc(p);
         }
-        
+        ERTS_CHK_MBUF_SZ(p);
         ASSERT(p->scheduler_data);
         ASSERT(p->scheduler_data->current_process == p);
         ASSERT(p->scheduler_data->free_process == NULL);
@@ -14470,7 +14504,7 @@ restart:
              * when done with the process...
              */
         }
-
+        
         erts_schedule_thr_prgr_later_cleanup_op(
             (void (*)(void*))erts_proc_dec_refc,
             (void *) &p->common,
@@ -14495,6 +14529,8 @@ restart:
     erts_flush_trace_messages(p, ERTS_PROC_LOCK_MAIN);
 
     ERTS_TRACER_CLEAR(&ERTS_TRACER(p));
+
+    ERTS_CHK_MBUF_SZ(p);
 
     if (!delay_del_proc)
 	delete_process(p);
@@ -14539,6 +14575,8 @@ restart:
     ERTS_LC_ASSERT(ERTS_PROC_LOCK_MAIN == erts_proc_lc_my_proc_locks(p));
 
     BUMP_ALL_REDS(p);
+
+    ERTS_CHK_MBUF_SZ(p);
 }
 
 Process *

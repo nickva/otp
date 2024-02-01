@@ -2965,6 +2965,7 @@ sweep_off_heap(Process *p, int fullsweep)
     prev = &MSO(p).first;
     ptr = MSO(p).first;
 
+    ERTS_CHK_MBUF_SZ(p);
     /* First part of the list will reside on the (old) new-heap.
      * Keep if moved, otherwise deref.
      */
@@ -3061,6 +3062,8 @@ sweep_off_heap(Process *p, int fullsweep)
     }
 
     insert_old_here = prev;
+
+    ERTS_CHK_MBUF_SZ(p);
 
 #ifdef DEBUG
     if (fullsweep) {
@@ -3188,6 +3191,7 @@ sweep_off_heap(Process *p, int fullsweep)
         }
     }
 
+    ERTS_CHK_MBUF_SZ(p);
     /*
      * Handle any unresolved shrink candidates left at the head of wrt_bins.
      */

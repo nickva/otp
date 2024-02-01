@@ -1666,7 +1666,7 @@ erts_mbuf_size(Process *p)
     return sz;
 }
 
-void
+int
 erts_check_circular_offheap(Process *p)
 {
     struct erl_off_heap_header* slow;
@@ -1677,10 +1677,12 @@ erts_check_circular_offheap(Process *p)
 
     while (fast) {
         fast = fast->next;
-        ERTS_ASSERT(fast != slow);
+        if (fast == slow) return 0;
 
         if (++cnt & 1) {
             slow = slow->next;
         }
     }
+
+    return 1;
 }

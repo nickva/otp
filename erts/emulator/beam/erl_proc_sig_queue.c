@@ -3596,6 +3596,7 @@ copy_heap_frag_eterm(Process *c_p, ErtsMessage *mp, Eterm value)
             mp->data.heap_frag = hfrag_cpy;
         }
     }
+    ERTS_CHK_MBUF_SZ(c_p);
     return term_cpy;
 }
 
@@ -6196,9 +6197,11 @@ erts_proc_sig_handle_incoming(Process *c_p, erts_aint32_t *statep,
                                      &delayed_nm_signals);
 		break;
 	    case ERTS_SIG_Q_TYPE_OFF_HEAP:
+                ERTS_CHK_MBUF_SZ(c_p);
 		adj_cnt = handle_move_msgq_off_heap(c_p, sig, next_nm_sig,
                                                     0, adj_limit,
                                                     &delayed_nm_signals);
+                ERTS_CHK_MBUF_SZ(c_p);
 		break;
 	    default:
 		ERTS_INTERNAL_ERROR("Invalid adjust-message-queue signal type");
@@ -6734,8 +6737,10 @@ erts_proc_sig_handle_exit(Process *c_p, Sint *redsp,
 		handle_cla(c_p, sig, next_nm_sig, !0, limit, NULL);
 		break;
 	    case ERTS_SIG_Q_TYPE_OFF_HEAP:
+                ERTS_CHK_MBUF_SZ(c_p);
 		handle_move_msgq_off_heap(c_p, sig, next_nm_sig, !0,
                                           limit, NULL);
+                ERTS_CHK_MBUF_SZ(c_p);
 		break;
 	    default:
 		ERTS_INTERNAL_ERROR("Invalid adjust-message-queue signal type");
@@ -8140,13 +8145,14 @@ move_msg_to_heap(Process *c_p, ErtsMessage *mp)
         ErlHeapFragment *bp;
         
         bp = erts_message_to_heap_frag(mp);
-
+        ERTS_CHK_MBUF_SZ(c_p);
         if (bp->next)
             erts_move_multi_frags(&c_p->htop, &c_p->off_heap, bp,
                                   mp->m, ERL_MESSAGE_REF_ARRAY_SZ, 0);
         else
             erts_copy_one_frag(&c_p->htop, &c_p->off_heap, bp,
                                mp->m, ERL_MESSAGE_REF_ARRAY_SZ);
+        ERTS_CHK_MBUF_SZ(c_p);
 
         mp->data.heap_frag = NULL;
         free_message_buffer(bp);
