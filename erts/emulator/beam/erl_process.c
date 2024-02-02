@@ -13334,24 +13334,28 @@ erts_proc_exit_handle_dist_monitor(ErtsMonitor *mon, void *vctxt, Sint reds)
     ASSERT(dep);
     dist = ((ErtsMonitorDataExtended *) mdp)->dist;
     ASSERT(dist);
-
+    ERTS_CHK_MBUF_SZ(c_p);
     code = erts_dsig_prepare(&ctx, dep, c_p, ERTS_PROC_LOCK_MAIN,
                              ERTS_DSP_NO_LOCK, 0, 0, 1);
 
     ctx.reds = (Sint) (reds * TERM_TO_BINARY_LOOP_FACTOR);
-
+    ERTS_CHK_MBUF_SZ(c_p);
     switch (code) {
     case ERTS_DSIG_PREP_NOT_ALIVE:
     case ERTS_DSIG_PREP_NOT_CONNECTED:
         break;
     case ERTS_DSIG_PREP_PENDING:
+         ERTS_CHK_MBUF_SZ(c_p);
     case ERTS_DSIG_PREP_CONNECTED:
         if (dist->connection_id != ctx.connection_id)
             break;
         erts_factory_proc_init(&factory, c_p);
+        ERTS_CHK_MBUF_SZ(c_p);
         watcher_sz = size_object(watcher);
         hp = erts_produce_heap(&factory, watcher_sz, 0);
+        ERTS_CHK_MBUF_SZ(c_p);
         watcher = copy_struct(watcher, watcher_sz, &hp, factory.off_heap);
+        ERTS_CHK_MBUF_SZ(c_p);
         ref_sz = size_object(mdp->ref);
         hp = erts_produce_heap(&factory, ref_sz, 0);
         ERTS_CHK_MBUF_SZ(c_p);
@@ -13536,7 +13540,7 @@ erts_proc_exit_dist_demonitor(Process *c_p, DistEntry *dep, Uint32 conn_id,
 
     ASSERT(is_internal_ref(ref));
     ASSERT(is_atom(watched) || is_external_pid(watched));
-
+    ERTS_CHK_MBUF_SZ(c_p);
     code = erts_dsig_prepare(&ctx, dep, NULL, 0,
                              ERTS_DSP_NO_LOCK, 1, 1, 0);
     switch (code) {
@@ -14299,8 +14303,10 @@ restart:
             (void *) &trap_state->pectxt,
             &trap_state->yield_state,
             reds);
-        if (reds <= 0)
+        if (reds <= 0) {
+            ERTS_CHK_MBUF_SZ(p);
             goto yield;
+        }
         ERTS_CHK_MBUF_SZ(p);
         ASSERT(!trap_state->links);
         trap_state->yield_state = NULL;
