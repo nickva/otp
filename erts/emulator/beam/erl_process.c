@@ -12961,6 +12961,11 @@ erts_send_local_spawn_reply(Process *parent, ErtsProcLocks parent_locks,
         erts_proc_unlock(parent, locks & ~parent_locks);
 }
 
+volatile int cont_debug = 0;
+void wait_debug(void) {
+    while(!cont_debug) sleep(1);
+}
+
 /*
  * Initiates a pseudo process that can be used
  * for arithmetic BIFs.
@@ -13355,6 +13360,14 @@ erts_proc_exit_handle_dist_monitor(ErtsMonitor *mon, void *vctxt, Sint reds)
         hp = erts_produce_heap(&factory, watcher_sz, 0);
         ERTS_CHK_MBUF_SZ(c_p);
         watcher = copy_struct(watcher, watcher_sz, &hp, factory.off_heap);
+        if(!erts_check_circular_offheap(c_p)) {
+           fflush(stdout);
+           fflush(stderr);
+           fprintf(stderr, "XXXXX %s:%s:%d \n", __FILE__, __func__, __LINE__);
+           fflush(stderr);
+           fflush(stdout);
+           wait_debug();
+        }
         ERTS_CHK_MBUF_SZ(c_p);
         ref_sz = size_object(mdp->ref);
         hp = erts_produce_heap(&factory, ref_sz, 0);
