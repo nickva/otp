@@ -13797,7 +13797,6 @@ erts_proc_exit_handle_dist_link(ErtsLink *lnk, void *vctxt, Sint reds)
     case ERTS_DSIG_PREP_PENDING:
     case ERTS_DSIG_PREP_CONNECTED:
         if (dist->connection_id != ctx.connection_id)
-            ERTS_CHK_MBUF_SZ(c_p);
             break;
         erts_factory_proc_init(&factory, c_p);
         item_sz = size_object(lnk->other.item);
