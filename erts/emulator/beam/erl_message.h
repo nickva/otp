@@ -643,7 +643,7 @@ int erts_check_circular_offheap(Process *p);
         erts_check_circular_offheap(P);                 \
     } while (0)
 #else
-#  define ERTS_CHK_MBUF_SZ(P) ERTS_ASSERT(erts_check_circular_offheap(P))
+#  define ERTS_CHK_MBUF_SZ(P) ERTS_ASSERT((erts_check_circular_offheap(P)==0))
 #endif
 
 #define ERTS_FOREACH_SIG_PRIVQS(PROC, MVAR, CODE)                       \

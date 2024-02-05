@@ -1676,13 +1676,14 @@ erts_check_circular_offheap(Process *p)
     slow = fast = p->off_heap.first;
 
     while (fast) {
+        if(ErtsInBetween(fast, p->htop, p->hend)) return 1;
         fast = fast->next;
-        if (fast == slow) return 0;
+        if (fast == slow) return 2;
 
         if (++cnt & 1) {
             slow = slow->next;
         }
     }
 
-    return 1;
+    return 0;
 }
